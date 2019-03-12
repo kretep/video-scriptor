@@ -6,8 +6,9 @@ import random
 from scipy.ndimage.interpolation import affine_transform
 
 class PanZoomAnimation:
-    def __init__(self, npIm):
+    def __init__(self, npIm, rootSpec):
         self.npIm = npIm
+        self.rootSpec = rootSpec
         (self.x0, self.y0, self.s0) = self.getRandomAnimationPoint(0)
         (self.x1, self.y1, self.s1) = self.getRandomAnimationPoint(1)
 
@@ -18,8 +19,8 @@ class PanZoomAnimation:
 
         originalWidth = self.npIm.shape[1]
         originalHeight = self.npIm.shape[0]
-        targetWidth = 1440
-        targetHeight = 1080
+        targetWidth = self.rootSpec['framewidth']
+        targetHeight = self.rootSpec['frameheight']
 
         # The actual frame scale used
         frameScaleW = 1.0 * targetWidth / originalWidth
@@ -47,11 +48,12 @@ class PanZoomAnimation:
 
         # Apply transformation matrix and offset
         matrix = [[ s, 0, 0],
-                [ 0, s, 0],
-                [ 0, 0, 1]]
+                  [ 0, s, 0],
+                  [ 0, 0, 1]]
         offset = [dy, dx, 0] # y before x!
         print (dx, dy, s)
-        return affine_transform(self.npIm, matrix, offset, (1080, 1440, 3),
+        outputShape = (self.rootSpec['frameheight'], self.rootSpec['framewidth'], 3)
+        return affine_transform(self.npIm, matrix, offset, outputShape,
             order=1, mode='constant', cval=255.0)
 
 class Scriptor:
@@ -96,7 +98,7 @@ class Scriptor:
                 animation = None
                 if 'type' in animationSpec:
                     animationType = animationSpec['type']
-                    animation = PanZoomAnimation(npImCurrent)
+                    animation = PanZoomAnimation(npImCurrent, script)
 
                 # Generate frames
                 duration = image['duration']
