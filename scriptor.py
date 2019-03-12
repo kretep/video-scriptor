@@ -8,7 +8,8 @@ from scipy.ndimage.interpolation import affine_transform
 class PanZoomAnimation:
     def __init__(self, npIm, rootSpec):
         self.npIm = npIm
-        self.rootSpec = rootSpec
+        self.frameWidth = rootSpec['framewidth']
+        self.frameHeight = rootSpec['frameheight']
         (self.x0, self.y0, self.s0) = self.getRandomAnimationPoint(0)
         (self.x1, self.y1, self.s1) = self.getRandomAnimationPoint(1)
 
@@ -19,16 +20,14 @@ class PanZoomAnimation:
 
         originalWidth = self.npIm.shape[1]
         originalHeight = self.npIm.shape[0]
-        targetWidth = self.rootSpec['framewidth']
-        targetHeight = self.rootSpec['frameheight']
 
         # The actual frame scale used
-        frameScaleW = 1.0 * targetWidth / originalWidth
+        frameScaleW = 1.0 * self.frameWidth / originalWidth
 
         # When the aspect ratio of the image doesn't match that of the target frame,
         # we want to know the covered height so the animation potentially covers the
         # full height
-        originalHeightCovered = targetHeight / frameScaleW
+        originalHeightCovered = self.frameHeight / frameScaleW
 
         dx = fx * (originalWidth - (originalWidth / scale))
         dy = fy * (originalHeight - (originalHeightCovered / scale))
@@ -49,7 +48,7 @@ class PanZoomAnimation:
                   [ 0, 0, 1]]
         offset = [dy, dx, 0] # y before x!
         print (dx, dy, s)
-        outputShape = (self.rootSpec['frameheight'], self.rootSpec['framewidth'], 3) # height before width!
+        outputShape = (self.frameHeight, self.frameWidth, 3) # height before width!
         return affine_transform(self.npIm, matrix, offset, outputShape,
             order=1, mode='constant', cval=255.0)
 
@@ -66,7 +65,6 @@ class Scriptor:
     def generateVideo(self):
         with open('video.spec.yml') as t:
             script = yaml.safe_load(t)
-            print(script)
             writer = imageio.get_writer(os.path.join('output', 'video_imageio.mp4'), fps=30)
 
             framerate = script['framerate']
