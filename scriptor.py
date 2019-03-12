@@ -15,8 +15,7 @@ class AniMeta:
         self.s1 = s1
 
 def getRandomAnimationPoint(npIm, fake):
-    fract = random.random() * 0.2
-    scale = 1.0 + fract
+    scale = 1.0 + 0.2 * random.random()
     fx = random.random()
     fy = random.random()
 
@@ -35,43 +34,28 @@ def getRandomAnimationPoint(npIm, fake):
 
     dx = fx * (originalWidth - (originalWidth / scale))
     dy = fy * (originalHeight - (originalHeightCovered / scale))
-    print(dx, dy)
-    return (dx, dy, scale)
+    combinedScale = 1 / (scale * frameScaleW)
+    print(dx, dy, combinedScale)
+    return (dx, dy, combinedScale)
 
 # totalDuration should include the animation duration for the current image and the
 # transition duration to the next image
 def animateImage2(npIm, animeta, i, totalDuration, framerate):
-    #print(i, totalDuration)
+    
+    # Interpolate
     t = i / (totalDuration * framerate)
     dx = animeta.x0 * (1.0 - t) + animeta.x1 * t
     dy = animeta.y0 * (1.0 - t) + animeta.y1 * t
-    animationScale = 1.0 / (animeta.s0 * (1.0 - t) + animeta.s1 * t)
-    originalWidth = npIm.shape[1]
-    originalHeight = npIm.shape[0]
-    targetWidth = 1440
-    targetHeight = 1080
+    s =  animeta.s0 * (1.0 - t) + animeta.s1 * t
 
-    # The actual frame scale used
-    frameScaleW = 1.0 * targetWidth / originalWidth
-
-    # When the aspect ratio of the image doesn't match that of the target frame,
-    # we want to know the covered height so the animation potentially covers the
-    # full height
-    originalHeightCovered = targetHeight / frameScaleW
-    
-    #print(frameScaleW, animationScale)
-    s = animationScale / frameScaleW
-    # dx = fx * (originalWidth - (originalWidth * animationScale))
-    # dy = fy * (originalHeight - (originalHeightCovered * animationScale))
+    # Apply transformation matrix and offset
     matrix = [[ s, 0, 0],
               [ 0, s, 0],
               [ 0, 0, 1]]
-    #offset = [dy * height / frameScaleH, dx * width / frameScaleW, 0]  # column vector
-    #offset = [dy * height, dx * width, 0]
     offset = [dy, dx, 0] # y before x!
-    print (s, dx, dy)
-    return affine_transform(npIm, matrix, offset, (targetHeight, targetWidth, 3),
-        order=2, mode='constant', cval=255.0)
+    print (dx, dy, s)
+    return affine_transform(npIm, matrix, offset, (1080, 1440, 3),
+        order=1, mode='constant', cval=255.0)
 
 with open('video.spec.yml') as t:
     script = yaml.safe_load(t)
