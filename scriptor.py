@@ -36,12 +36,9 @@ class PanZoomAnimation:
         print(dx, dy, combinedScale)
         return (dx, dy, combinedScale)
 
-    # totalDuration should include the animation duration for the current image and the
-    # transition duration to the next image
-    def animate(self, i, totalDuration, framerate):
+    def animate(self, t):
         
         # Interpolate
-        t = i / (totalDuration * framerate)
         dx = self.x0 * (1.0 - t) + self.x1 * t
         dy = self.y0 * (1.0 - t) + self.y1 * t
         s =  self.s0 * (1.0 - t) + self.s1 * t
@@ -52,7 +49,7 @@ class PanZoomAnimation:
                   [ 0, 0, 1]]
         offset = [dy, dx, 0] # y before x!
         print (dx, dy, s)
-        outputShape = (self.rootSpec['frameheight'], self.rootSpec['framewidth'], 3)
+        outputShape = (self.rootSpec['frameheight'], self.rootSpec['framewidth'], 3) # height before width!
         return affine_transform(self.npIm, matrix, offset, outputShape,
             order=1, mode='constant', cval=255.0)
 
@@ -60,6 +57,11 @@ class Scriptor:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    # totalDuration should include the animation duration for the current image and the
+    # transition duration to the next image
+    def getTForFrame(self, frameNumber, totalDuration, frameRate):
+        return frameNumber / (totalDuration * frameRate)
     
     def generateVideo(self):
         with open('video.spec.yml') as t:
@@ -108,14 +110,16 @@ class Scriptor:
 
                     # Animate image
                     #TODO: use transitionDuration of NEXT image
-                    npIm1 = animation.animate(i, duration + transitionDuration, framerate)
+                    t = self.getTForFrame(i, duration + transitionDuration, framerate)
+                    npIm1 = animation.animate(t)
                     
                     # Transition
                     transitionAlpha = 1.0 if (transitionDuration == 0) else i / (transitionDuration * framerate)
                     if transitionAlpha < 1.0:
                         # Animate previous image
-                        npIm0 = prevAnimation.animate(prevDuration * framerate + i, 
+                        t = self.getTForFrame(prevDuration * framerate + i,
                             prevDuration + transitionDuration, framerate)
+                        npIm0 = prevAnimation.animate(t)
 
                         # Combine transition images
                         npResult = ((1.0 - transitionAlpha) * npIm0 + transitionAlpha * npIm1).astype('uint8')
