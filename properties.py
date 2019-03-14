@@ -22,7 +22,7 @@ class Spec:
         self.specDict = specDict
         self.parentSpec = parentSpec
 
-    def get(self, propertyOrKey, default=None):
+    def get(self, propertyOrKey, default=None, doRecurse=True):
         """Returns the value of the specified property in the current spec,
            or looks it up recursively in the parent spec when it is not found,
            or returns the property default if no match is found.
@@ -30,7 +30,7 @@ class Spec:
         property = Property(propertyOrKey, default) if isinstance(propertyOrKey, str) else propertyOrKey
         if property.key in self.specDict:
             return self.specDict[property.key]
-        if self.parentSpec != None:
+        if self.parentSpec != None and doRecurse:
             return self.parentSpec.get(property)
         return property.default
     
