@@ -17,7 +17,6 @@ class Scriptor:
             filename = spec.get(Props.OUTPUT_FILE)
             writer = imageio.get_writer(os.path.join('output', filename), fps=framerate)
 
-            npImPrev = None #todo: make empty/black image
             prevAnimation = None
             prevDuration = 0
 
@@ -31,9 +30,6 @@ class Scriptor:
                 inputFileName = imageSpec.get(Props.IMAGE_FILE)
                 npImCurrent = imageio.imread('./input/%s' % inputFileName)
                 
-                if prevAnimation == None: # cannot compare np array to None?
-                    npImPrev = npImCurrent
-
                 # Some administration for transition
                 transition = image['transition']
                 transitionDuration = 0
@@ -81,7 +77,6 @@ class Scriptor:
                         imageio.imwrite(outputFrames % globalFrameN, npResult)
                     globalFrameN += 1
 
-                npImPrev = npImCurrent
                 prevAnimation = animation
                 prevDuration = duration
 
