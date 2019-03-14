@@ -2,72 +2,18 @@ import os
 import numpy as np
 import imageio
 import yaml
-import random
-from scipy.ndimage.interpolation import affine_transform
-
-class PanZoomAnimation:
-    def __init__(self, npIm, rootSpec):
-        self.npIm = npIm
-        self.frameWidth = rootSpec['framewidth']
-        self.frameHeight = rootSpec['frameheight']
-        (self.x0, self.y0, self.s0) = self.getRandomAnimationPoint(0)
-        (self.x1, self.y1, self.s1) = self.getRandomAnimationPoint(1)
-
-    def getRandomAnimationPoint(self, fake):
-        scale = 1.0 + 0.2 * random.random()
-        fx = random.random()
-        fy = random.random()
-
-        originalWidth = self.npIm.shape[1]
-        originalHeight = self.npIm.shape[0]
-
-        # The actual frame scale used
-        frameScaleW = 1.0 * self.frameWidth / originalWidth
-
-        # When the aspect ratio of the image doesn't match that of the target frame,
-        # we want to know the covered height so the animation potentially covers the
-        # full height
-        originalHeightCovered = self.frameHeight / frameScaleW
-
-        dx = fx * (originalWidth - (originalWidth / scale))
-        dy = fy * (originalHeight - (originalHeightCovered / scale))
-        combinedScale = 1 / (scale * frameScaleW)
-        print(dx, dy, combinedScale)
-        return (dx, dy, combinedScale)
-
-    def animate(self, t):
-        
-        # Interpolate
-        dx = self.x0 * (1.0 - t) + self.x1 * t
-        dy = self.y0 * (1.0 - t) + self.y1 * t
-        s =  self.s0 * (1.0 - t) + self.s1 * t
-
-        # Apply transformation matrix and offset
-        matrix = [[ s, 0, 0],
-                  [ 0, s, 0],
-                  [ 0, 0, 1]]
-        offset = [dy, dx, 0] # y before x!
-        print (dx, dy, s)
-        outputShape = (self.frameHeight, self.frameWidth, 3) # height before width!
-        return affine_transform(self.npIm, matrix, offset, outputShape,
-            order=1, mode='constant', cval=255.0)
+from panzoomanimation import PanZoomAnimation
 
 class Scriptor:
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    # totalDuration should include the animation duration for the current image and the
-    # transition duration to the next image
-    def getTForFrame(self, frameNumber, totalDuration, frameRate):
-        return frameNumber / (totalDuration * frameRate)
-    
     def generateVideo(self):
         with open('video.spec.yml') as t:
             script = yaml.safe_load(t)
-            writer = imageio.get_writer(os.path.join('output', 'video_imageio.mp4'), fps=30)
-
             framerate = script['framerate']
+            outputFrames = script['outputframes'] if 'outputframes' in script else ""
+
+            # Initialize writer
+            writer = imageio.get_writer(os.path.join('output', script['outputfile']), fps=framerate)
 
             npImPrev = None #todo: make empty/black image
             prevAnimation = None
@@ -75,7 +21,7 @@ class Scriptor:
 
             # Process images in script
             images = script['images']
-            k = 0
+            globalFrameN = 0
             for image in images:
                 
                 # Read image
@@ -124,18 +70,25 @@ class Scriptor:
                     else:
                         npResult = npIm1
 
-                    # Write result    
+                    # Write frame to video
                     writer.append_data(npResult)
 
-                    # Debugging
-                    imageio.imwrite('./output/%04d.jpg' % k, npResult)
-                    k += 1
+                    # Write frame to image if set up
+                    if outputFrames:
+                        imageio.imwrite(outputFrames % globalFrameN, npResult)
+                    globalFrameN += 1
 
                 npImPrev = npImCurrent
                 prevAnimation = animation
                 prevDuration = duration
 
             writer.close()
+    
+    # totalDuration should include the animation duration for the current image and the
+    # transition duration to the next image
+    def getTForFrame(self, frameNumber, totalDuration, frameRate):
+        return frameNumber / (totalDuration * frameRate)
+    
 
 if __name__ == "__main__":
     scriptor = Scriptor()
