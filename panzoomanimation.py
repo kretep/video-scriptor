@@ -7,6 +7,7 @@ class PanZoomAnimation:
         self.npIm = npIm
         self.frameWidth = spec.getRootValue(Props.FRAME_WIDTH)
         self.frameHeight = spec.getRootValue(Props.FRAME_HEIGHT)
+        self.interpolationOrder = spec.get('interpolationorder', 1)
         (self.x0, self.y0, self.s0) = \
             self.getRandomAnimationPoint(spec.get('x0'), spec.get('y0'), spec.get('s0'))
         (self.x1, self.y1, self.s1) = \
@@ -49,4 +50,4 @@ class PanZoomAnimation:
         print (dx, dy, s)
         outputShape = (self.frameHeight, self.frameWidth, 3) # height before width!
         return affine_transform(self.npIm, matrix, offset, outputShape,
-            order=1, mode='constant', cval=255.0)
+            order=self.interpolationOrder, mode='constant', cval=255.0)
