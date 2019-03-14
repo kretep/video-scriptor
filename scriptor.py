@@ -3,30 +3,34 @@ import numpy as np
 import imageio
 import yaml
 from panzoomanimation import PanZoomAnimation
-
+from properties import Spec, Props
 class Scriptor:
 
     def generateVideo(self):
         with open('video.spec.yml') as t:
-            script = yaml.safe_load(t)
-            framerate = script['framerate']
-            outputFrames = script['outputframes'] if 'outputframes' in script else ""
+            scriptDict = yaml.safe_load(t)
+            spec = Spec(scriptDict, None)
+            framerate = spec.get(Props.FRAME_RATE)
+            outputFrames = spec.get(Props.OUTPUT_FRAMES)
 
             # Initialize writer
-            writer = imageio.get_writer(os.path.join('output', script['outputfile']), fps=framerate)
+            filename = spec.get(Props.OUTPUT_FILE)
+            writer = imageio.get_writer(os.path.join('output', filename), fps=framerate)
 
             npImPrev = None #todo: make empty/black image
             prevAnimation = None
             prevDuration = 0
 
             # Process images in script
-            images = script['images']
             globalFrameN = 0
-            for image in images:
-                
+            images = spec.get(Props.IMAGES)
+            for image in images: # TODO: make spec.get return arry of Spec instead of array of dicts
+                imageSpec = Spec(image, spec)
+
                 # Read image
-                npImCurrent = imageio.imread('./input/%s' % image['file'])
-                #print(npImCurrent.shape)
+                inputFileName = imageSpec.get(Props.IMAGE_FILE)
+                npImCurrent = imageio.imread('./input/%s' % inputFileName)
+                
                 if prevAnimation == None: # cannot compare np array to None?
                     npImPrev = npImCurrent
 
@@ -39,12 +43,11 @@ class Scriptor:
                     transitionType = transition['type']
 
                 # Same for animation
-                animationSpec = image['animation']
-                animationType = None
-                animation = None
-                if 'type' in animationSpec:
-                    animationType = animationSpec['type']
-                    animation = PanZoomAnimation(npImCurrent, script)
+                animationSpecDict = imageSpec.get(Props.IMAGE_ANIMATION)
+                animationSpec = Spec(animationSpecDict, imageSpec)
+                animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
+                #TODO: use reflection to instantiate:
+                animation = PanZoomAnimation(npImCurrent, animationSpec)
 
                 # Generate frames
                 duration = image['duration']
@@ -74,7 +77,7 @@ class Scriptor:
                     writer.append_data(npResult)
 
                     # Write frame to image if set up
-                    if outputFrames:
+                    if outputFrames != '':
                         imageio.imwrite(outputFrames % globalFrameN, npResult)
                     globalFrameN += 1
 
@@ -84,6 +87,8 @@ class Scriptor:
 
             writer.close()
     
+    # Scales the frameNumber to the current position in the animation to a fraction
+    # between 0 and 1.
     # totalDuration should include the animation duration for the current image and the
     # transition duration to the next image
     def getTForFrame(self, frameNumber, totalDuration, frameRate):

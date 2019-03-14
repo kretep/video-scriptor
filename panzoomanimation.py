@@ -1,13 +1,21 @@
 import random
 from scipy.ndimage.interpolation import affine_transform
+from properties import Props
 
 class PanZoomAnimation:
-    def __init__(self, npIm, rootSpec):
+    def __init__(self, npIm, spec):
         self.npIm = npIm
-        self.frameWidth = rootSpec['framewidth']
-        self.frameHeight = rootSpec['frameheight']
-        (self.x0, self.y0, self.s0) = self.getRandomAnimationPoint(0)
-        (self.x1, self.y1, self.s1) = self.getRandomAnimationPoint(1)
+        self.frameWidth = spec.getRootValue(Props.FRAME_WIDTH)
+        self.frameHeight = spec.getRootValue(Props.FRAME_HEIGHT)
+        (x0, y0, s0) = self.getRandomAnimationPoint(0)
+        (x1, y1, s1) = self.getRandomAnimationPoint(1)
+        self.x0 = spec.get('x0', x0)
+        self.y0 = spec.get('y0', y0)
+        self.s0 = spec.get('s0', s0)
+        self.x1 = spec.get('x1', x1)
+        self.y1 = spec.get('y1', y1)
+        self.s1 = spec.get('s1', s1)
+        print(self.x0, self.y0, self.s0, self.x1, self.y1, self.s1)
 
     def getRandomAnimationPoint(self, fake):
         scale = 1.0 + 0.2 * random.random()
@@ -28,7 +36,6 @@ class PanZoomAnimation:
         dx = fx * (originalWidth - (originalWidth / scale))
         dy = fy * (originalHeight - (originalHeightCovered / scale))
         combinedScale = 1 / (scale * frameScaleW)
-        print(dx, dy, combinedScale)
         return (dx, dy, combinedScale)
 
     def animate(self, t):
