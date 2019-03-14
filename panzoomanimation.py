@@ -7,20 +7,16 @@ class PanZoomAnimation:
         self.npIm = npIm
         self.frameWidth = spec.getRootValue(Props.FRAME_WIDTH)
         self.frameHeight = spec.getRootValue(Props.FRAME_HEIGHT)
-        (x0, y0, s0) = self.getRandomAnimationPoint(0)
-        (x1, y1, s1) = self.getRandomAnimationPoint(1)
-        self.x0 = spec.get('x0', x0)
-        self.y0 = spec.get('y0', y0)
-        self.s0 = spec.get('s0', s0)
-        self.x1 = spec.get('x1', x1)
-        self.y1 = spec.get('y1', y1)
-        self.s1 = spec.get('s1', s1)
+        (self.x0, self.y0, self.s0) = \
+            self.getRandomAnimationPoint(spec.get('x0'), spec.get('y0'), spec.get('s0'))
+        (self.x1, self.y1, self.s1) = \
+            self.getRandomAnimationPoint(spec.get('x1'), spec.get('y1'), spec.get('s1'))
         print(self.x0, self.y0, self.s0, self.x1, self.y1, self.s1)
 
-    def getRandomAnimationPoint(self, fake):
-        scale = 1.0 + 0.2 * random.random()
-        fx = random.random()
-        fy = random.random()
+    def getRandomAnimationPoint(self, fx, fy, fs):
+        scale = 1.0 + 0.2 * random.random() if fs == None else fs
+        fx = random.random() if fx == None else fx
+        fy = random.random() if fy == None else fy
 
         originalWidth = self.npIm.shape[1]
         originalHeight = self.npIm.shape[0]
