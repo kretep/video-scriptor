@@ -18,7 +18,9 @@ class Scriptor:
 
             # Initialize writer
             filename = rootSpec.get(Props.OUTPUT_FILE)
-            self.writer = imageio.get_writer(os.path.join('output', filename), fps=self.framerate)
+            self.writer = imageio.get_writer(os.path.join('output', filename), 
+                fps=self.framerate,
+                macro_block_size=8)
 
             self.prevAnimation = None
             self.prevDuration = 0
