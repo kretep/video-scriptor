@@ -4,6 +4,7 @@ import imageio
 import yaml
 import random
 from panzoomanimation import PanZoomAnimation
+from blendtransition import BlendTransition
 from properties import Spec, Props
 
 class Scriptor:
@@ -46,9 +47,10 @@ class Scriptor:
         
         # Some administration for transition
         transitionDict = imageSpec.get('transition', { 'type': 'blend', 'duration': 0.5 })
-        transition = Spec(transitionDict, imageSpec)
-        transitionDuration = transition.get('duration', 0.5)
-        transitionType = transition.get('type', 'blend')
+        transitionSpec = Spec(transitionDict, imageSpec)
+        transitionDuration = transitionSpec.get('duration', 0.5)
+        transitionType = transitionSpec.get('type', 'blend')
+        transition = BlendTransition()
 
         # Same for animation
         animationSpecDict = imageSpec.get(Props.IMAGE_ANIMATION)
@@ -65,19 +67,19 @@ class Scriptor:
 
             # Animate image
             #TODO: use transitionDuration of NEXT image
-            t = self.getTForFrame(i, duration + transitionDuration, self.framerate)
-            npIm1 = animation.animate(t)
+            animationT = self.getTForFrame(i, duration + transitionDuration, self.framerate)
+            npIm1 = animation.animate(animationT)
             
             # Transition
-            transitionAlpha = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
-            if transitionAlpha < 1.0 and self.prevAnimation != None:
+            transitionT = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
+            if transitionT < 1.0 and self.prevAnimation != None:
                 # Animate previous image
-                t = self.getTForFrame(self.prevDuration * self.framerate + i,
+                animationT = self.getTForFrame(self.prevDuration * self.framerate + i,
                     self.prevDuration + transitionDuration, self.framerate)
-                npIm0 = self.prevAnimation.animate(t)
+                npIm0 = self.prevAnimation.animate(animationT)
 
                 # Combine transition images
-                npResult = ((1.0 - transitionAlpha) * npIm0 + transitionAlpha * npIm1).astype('uint8')
+                npResult = transition.processTransition(npIm0, npIm1, transitionT)
             else:
                 npResult = npIm1
 
