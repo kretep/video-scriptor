@@ -51,3 +51,4 @@ class PanZoomAnimation:
         outputShape = (self.frameHeight, self.frameWidth, 3) # height before width!
         return affine_transform(self.npIm, matrix, offset, outputShape,
             order=self.interpolationOrder, mode='constant', cval=255.0)
+        

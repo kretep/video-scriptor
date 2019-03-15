@@ -2,6 +2,7 @@ import os
 import numpy as np
 import imageio
 import yaml
+import random
 from panzoomanimation import PanZoomAnimation
 from properties import Spec, Props
 
@@ -12,6 +13,7 @@ class Scriptor:
             self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
             self.framerate = rootSpec.get(Props.FRAME_RATE)
             self.outputFrames = rootSpec.get(Props.OUTPUT_FRAMES)
+            random.seed(rootSpec.get('randomseed'))
 
             # Initialize writer
             filename = rootSpec.get(Props.OUTPUT_FILE)
