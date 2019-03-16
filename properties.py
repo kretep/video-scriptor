@@ -13,8 +13,8 @@ class Props:
     IMAGES = Property('images', [])
 
     IMAGE_FILE = Property('file', '')
-    IMAGE_ANIMATION = Property('animation', {'type': 'panzoom'})
-    IMAGE_ANIMATION_TYPE = Property('type', 'panzoom')
+    IMAGE_ANIMATION = Property('animation', 'panzoom')
+    IMAGE_TRANSITION = Property('transition', 'blend')
 
 class Spec:
 
@@ -33,6 +33,10 @@ class Spec:
         if self.parentSpec != None and doRecurse:
             return self.parentSpec.get(property)
         return property.default
+    
+    def getSpec(self, key, default=None, doRecurse=True):
+        dict = self.get(key, default, doRecurse)
+        return Spec(dict, self)
     
     def getRootValue(self, property):
         """Returns the value of the specified property in the root spec,

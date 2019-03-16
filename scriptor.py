@@ -47,19 +47,15 @@ class Scriptor:
         inputFileName = imageSpec.get(Props.IMAGE_FILE)
         npImCurrent = imageio.imread('./input/%s' % inputFileName)
         
-        # Some administration for transition
-        transitionDict = imageSpec.get('transition', { 'type': 'blend', 'duration': 0.5 })
-        transitionSpec = Spec(transitionDict, imageSpec)
-        transitionDuration = transitionSpec.get('duration', 0.5)
-        transitionType = transitionSpec.get('type', 'blend')
+        # Set up transition
+        #TODO: relfect: transitionType = transitionSpec.get('type', 'blend')
         transition = BlendTransition()
+        transitionDuration = imageSpec.get('transitiontime', 0.5)
 
-        # Same for animation
-        animationSpecDict = imageSpec.get(Props.IMAGE_ANIMATION)
-        animationSpec = Spec(animationSpecDict, imageSpec)
-        animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
+        # Set up animation
+        #animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
         #TODO: use reflection to instantiate:
-        animation = PanZoomAnimation(npImCurrent, animationSpec)
+        animation = PanZoomAnimation(npImCurrent, imageSpec)
 
         # Generate frames
         duration = imageSpec.get('duration', 2.0)
