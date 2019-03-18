@@ -36,7 +36,7 @@ class Spec:
     
     def getSpec(self, key, default=None, doRecurse=True):
         dict = self.get(key, default, doRecurse)
-        return Spec(dict, self)
+        return Spec(dict, self) if dict != None else None
     
     def getRootValue(self, property):
         """Returns the value of the specified property in the root spec,

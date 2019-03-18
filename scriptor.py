@@ -3,6 +3,7 @@ import numpy as np
 import imageio
 import yaml
 import random
+import subprocess
 from panzoomanimation import PanZoomAnimation
 from blendtransition import BlendTransition
 from properties import Spec, Props
@@ -16,9 +17,11 @@ class Scriptor:
             self.outputFrames = rootSpec.get(Props.OUTPUT_FRAMES)
             random.seed(rootSpec.get('randomseed'))
 
-            # Initialize writer
             filename = rootSpec.get(Props.OUTPUT_FILE)
-            self.writer = imageio.get_writer(os.path.join('output', filename), 
+            videoOut = os.path.join('output', filename)
+
+            # Initialize writer
+            self.writer = imageio.get_writer(videoOut, 
                 fps=self.framerate,
                 macro_block_size=8)
 
@@ -31,6 +34,11 @@ class Scriptor:
             self.processImages(images, rootSpec)
 
             self.writer.close()
+
+            # Join audio
+            audioSpec = rootSpec.getSpec('audio')
+            if audioSpec != None:
+                self.combineVideoWithAudio(audioSpec, videoOut, os.path.join('output', 'combined.mp4'))
     
     def processImages(self, images, parentSpec):
         for item in images: # TODO: make spec.get return arry of Spec instead of array of dicts
@@ -100,6 +108,24 @@ class Scriptor:
     def getTForFrame(self, frameNumber, totalDuration, frameRate):
         return frameNumber / (totalDuration * frameRate)
     
+    def combineVideoWithAudio(self, audioSpec, videoIn, videoOut):
+        def maybe(option, key, spec):
+            value = spec.get(key)
+            return [option, str(value)] if value != None else []
+        audioIn = audioSpec.get('file')
+        cmd_out = ['ffmpeg',
+                '-y',
+                '-i', videoIn,
+                *maybe('-ss', 'audiooffset', audioSpec),
+                *maybe('-itsoffset', 'videooffset', audioSpec),
+                '-i', audioIn,
+                '-c', 'copy',
+                '-map', '0:v',
+                '-map', '1:a',
+                '-shortest',
+                videoOut]
+        pipe = subprocess.Popen(cmd_out)
+        pipe.wait()
 
 if __name__ == "__main__":
     scriptor = Scriptor()
