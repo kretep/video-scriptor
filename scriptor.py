@@ -15,6 +15,7 @@ class Scriptor:
             self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
             self.framerate = rootSpec.get(Props.FRAME_RATE)
             self.outputFrames = rootSpec.get(Props.OUTPUT_FRAMES)
+            self.limitFrames = rootSpec.get('limitframes')
             random.seed(rootSpec.get('randomseed'))
 
             filename = rootSpec.get(Props.OUTPUT_FILE)
@@ -49,6 +50,10 @@ class Scriptor:
                 self.processImages(subgroup, itemSpec)
             else:
                 self.processImage(itemSpec)
+            
+            # Stop early
+            if (self.limitFrames != None and self.globalFrameN >= self.limitFrames):
+                break
 
     def processImage(self, imageSpec):
         # Read image
@@ -95,7 +100,10 @@ class Scriptor:
             # Write frame to image if set up
             if self.outputFrames != '':
                 imageio.imwrite(self.outputFrames % self.globalFrameN, npResult)
+            
             self.globalFrameN += 1
+            if (self.limitFrames != None and self.globalFrameN >= self.limitFrames):
+                break
 
         self.prevAnimation = animation
         self.prevDuration = duration
