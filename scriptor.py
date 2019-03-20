@@ -26,11 +26,9 @@ class Scriptor:
                 fps=self.framerate,
                 macro_block_size=8)
 
-            self.prevAnimation = None
-            self.prevDuration = 0
-
             # Parse images in script
             self.allImageSpecs = [] # flat list of image specs
+            self.prevSpec = None
             images = rootSpec.get('images', [])
             self.parseImages(images, rootSpec)
 
@@ -55,8 +53,10 @@ class Scriptor:
                 self.parseImages(subgroup, itemSpec)
             else:
                 # Put in flat list
-                if len(self.allImageSpecs) > 0:
-                    self.allImageSpecs[len(self.allImageSpecs) - 1].nextSpec = itemSpec
+                if self.prevSpec != None:
+                    self.prevSpec.nextSpec = itemSpec
+                itemSpec.prevSpec = self.prevSpec
+                self.prevSpec = itemSpec
                 self.allImageSpecs.append(itemSpec)
             
     def processImages(self, imageSpecs):
@@ -64,6 +64,9 @@ class Scriptor:
             self.processImage(imageSpec)
 
     def processImage(self, imageSpec):
+        prevSpec = imageSpec.prevSpec
+        nextSpec = imageSpec.nextSpec
+
         # Read image
         inputFileName = imageSpec.get('file')
         assert inputFileName != None, 'No input file specified'
@@ -71,32 +74,34 @@ class Scriptor:
         
         # Set up transition
         #TODO: relfect: transitionType = transitionSpec.get('type', 'blend')
-        transition = BlendTransition()
+        imageSpec.transition = transition = BlendTransition()
         transitionDuration = imageSpec.get('transitiontime', 0.5)
+        nextTransitionDuration = nextSpec.get('transitiontime', 0.5)
 
         # Set up animation
         #animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
         #TODO: use reflection to instantiate:
-        animation = PanZoomAnimation(npImCurrent, imageSpec)
+        imageSpec.animation = animation = PanZoomAnimation(npImCurrent, imageSpec)
+        imageSpec.duration = duration = imageSpec.get('duration', 2.0)
+        
+        #TODO: Notify of init complete
 
         # Generate frames
-        duration = imageSpec.get('duration', 2.0)
         nframes = int(duration * self.framerate)
         for i in range(0, nframes):
             print("processing %s frame %d" % (inputFileName, i))
 
             # Animate image
-            #TODO: use transitionDuration of NEXT image
-            animationT = self.getTForFrame(i, duration + transitionDuration, self.framerate)
+            animationT = self.getTForFrame(i, duration + nextTransitionDuration, self.framerate)
             npIm1 = animation.animate(animationT)
             
             # Transition
             transitionT = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
-            if transitionT < 1.0 and self.prevAnimation != None:
+            if transitionT < 1.0 and prevSpec != None:
                 # Animate previous image
-                animationT = self.getTForFrame(self.prevDuration * self.framerate + i,
-                    self.prevDuration + transitionDuration, self.framerate)
-                npIm0 = self.prevAnimation.animate(animationT)
+                animationT = self.getTForFrame(prevSpec.duration * self.framerate + i,
+                    prevSpec.duration + transitionDuration, self.framerate)
+                npIm0 = prevSpec.animation.animate(animationT)
 
                 # Combine transition images
                 npResult = transition.processTransition(npIm0, npIm1, transitionT)
@@ -113,9 +118,6 @@ class Scriptor:
             self.globalFrameN += 1
             if (self.limitFrames != None and self.globalFrameN >= self.limitFrames):
                 break
-
-        self.prevAnimation = animation
-        self.prevDuration = duration
 
 
     # Scales the frameNumber to the current position in the animation to a fraction
