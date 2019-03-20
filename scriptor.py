@@ -29,10 +29,14 @@ class Scriptor:
             self.prevAnimation = None
             self.prevDuration = 0
 
-            # Process images in script
-            self.globalFrameN = 0
+            # Parse images in script
+            self.allImageSpecs = [] # flat list of image specs
             images = rootSpec.get('images', [])
-            self.processImages(images, rootSpec)
+            self.parseImages(images, rootSpec)
+
+            # Process images
+            self.globalFrameN = 0
+            self.processImages(self.allImageSpecs)
 
             self.writer.close()
 
@@ -41,24 +45,28 @@ class Scriptor:
             if audioSpec != None:
                 self.combineVideoWithAudio(audioSpec, videoOut, os.path.join('output', 'combined.mp4'))
     
-    def processImages(self, images, parentSpec):
-        for item in images: # TODO: make spec.get return arry of Spec instead of array of dicts
+    def parseImages(self, images, parentSpec):
+        for item in images:
             itemSpec = Spec(item, parentSpec)
+
             subgroup = itemSpec.get('images', None, doRecurse=False)
             if (subgroup != None):
                 # Recurse
-                self.processImages(subgroup, itemSpec)
+                self.parseImages(subgroup, itemSpec)
             else:
-                self.processImage(itemSpec)
+                # Put in flat list
+                if len(self.allImageSpecs) > 0:
+                    self.allImageSpecs[len(self.allImageSpecs) - 1].nextSpec = itemSpec
+                self.allImageSpecs.append(itemSpec)
             
-            # Stop early
-            if (self.limitFrames != None and self.globalFrameN >= self.limitFrames):
-                break
+    def processImages(self, imageSpecs):
+        for imageSpec in imageSpecs:
+            self.processImage(imageSpec)
 
     def processImage(self, imageSpec):
         # Read image
         inputFileName = imageSpec.get('file')
-        #assert(inputFileName != None, 'No input file specified')
+        assert inputFileName != None, 'No input file specified'
         npImCurrent = imageio.imread('./input/%s' % inputFileName)
         
         # Set up transition

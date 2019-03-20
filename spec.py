@@ -4,6 +4,7 @@ class Spec:
     def __init__(self, specDict, parentSpec):
         self.specDict = specDict
         self.parentSpec = parentSpec
+        self.nextSpec = None
 
     def get(self, key, default=None, doRecurse=True):
         """Returns the value of the specified property in the current spec,
