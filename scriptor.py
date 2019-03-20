@@ -6,19 +6,19 @@ import random
 import subprocess
 from panzoomanimation import PanZoomAnimation
 from blendtransition import BlendTransition
-from properties import Spec, Props
+from spec import Spec
 
 class Scriptor:
 
     def generateVideo(self):
         with open('video.spec.yml') as t:
             self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
-            self.framerate = rootSpec.get(Props.FRAME_RATE)
-            self.outputFrames = rootSpec.get(Props.OUTPUT_FRAMES)
+            self.framerate = rootSpec.get('framerate', 30)
+            self.outputFrames = rootSpec.get('outputframes')
             self.limitFrames = rootSpec.get('limitframes')
             random.seed(rootSpec.get('randomseed'))
 
-            filename = rootSpec.get(Props.OUTPUT_FILE)
+            filename = rootSpec.get('outputfile', 'video.mp4')
             videoOut = os.path.join('output', filename)
 
             # Initialize writer
@@ -31,7 +31,7 @@ class Scriptor:
 
             # Process images in script
             self.globalFrameN = 0
-            images = rootSpec.get(Props.IMAGES)
+            images = rootSpec.get('images', [])
             self.processImages(images, rootSpec)
 
             self.writer.close()
@@ -57,7 +57,8 @@ class Scriptor:
 
     def processImage(self, imageSpec):
         # Read image
-        inputFileName = imageSpec.get(Props.IMAGE_FILE)
+        inputFileName = imageSpec.get('file')
+        #assert(inputFileName != None, 'No input file specified')
         npImCurrent = imageio.imread('./input/%s' % inputFileName)
         
         # Set up transition
@@ -98,7 +99,7 @@ class Scriptor:
             self.writer.append_data(npResult)
 
             # Write frame to image if set up
-            if self.outputFrames != '':
+            if self.outputFrames != None:
                 imageio.imwrite(self.outputFrames % self.globalFrameN, npResult)
             
             self.globalFrameN += 1

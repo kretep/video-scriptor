@@ -1,12 +1,11 @@
 import random
 from scipy.ndimage.interpolation import affine_transform
-from properties import Props
 
 class PanZoomAnimation:
     def __init__(self, npIm, spec):
         self.npIm = npIm
-        self.frameWidth = spec.getRootValue(Props.FRAME_WIDTH)
-        self.frameHeight = spec.getRootValue(Props.FRAME_HEIGHT)
+        self.frameWidth = spec.getRootValue('framewidth', 1440)
+        self.frameHeight = spec.getRootValue('frameheight', 1080)
         self.interpolationOrder = spec.get('interpolationorder', 1)
         (self.x0, self.y0, self.s0) = \
             self.getRandomAnimationPoint(spec.get('x0'), spec.get('y0'), spec.get('s0'))
