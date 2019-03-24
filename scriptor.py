@@ -48,15 +48,16 @@ class Scriptor:
             # Parse images in script
             self.parseImages(images, rootSpec)
 
-            # Initialize writer
+            # Start processing image specs by launching worker threads
+            self.globalFrameN = 0
+            for _ in range(self.rootSpec.get('threads', 16)):
+                threading.Thread(target=self.threadRunnable).start()
+
+            # In the current thread, wait for and write the results
             self.writer = imageio.get_writer(videoOut, 
                 fps=self.framerate,
                 macro_block_size=8)
-
-            # Process images
-            self.globalFrameN = 0
-            self.processImages()
-
+            self.processResults()
             self.writer.close()
 
             # Join audio
@@ -91,40 +92,6 @@ class Scriptor:
                 # Remember previous
                 self.prevSpec = itemSpec
                 
-    def processImages(self):
-        """ Launches the threads for processin the images.
-        """
-        for _ in range(16):
-            threading.Thread(target=self.threadRunnable).start()
-        self.waitForResults()
-
-    def waitForResults(self):
-        currentResult = getFromQueue(self.resultQueue)
-        while not currentResult is None:
-
-            resultImage = getFromQueue(currentResult.imageQueue)
-            # Continue until flagged as finished and all images are out of the queue
-            while (not currentResult.isFinished) or (not resultImage is None):
-                
-                # Either we have an image to write or we have to wait for one
-                if not resultImage is None:
-                    self.writeResultImage(resultImage)
-                else:
-                    time.sleep(0.2)
-
-                resultImage = getFromQueue(currentResult.imageQueue)
-
-            currentResult = getFromQueue(self.resultQueue)
-
-    def writeResultImage(self, image):
-        # Write frame to video
-        self.writer.append_data(image)
-
-        # Write frame to image if set up
-        if not self.outputFrames is None:
-            imageio.imwrite(self.outputFrames % self.globalFrameN, image)
-        self.globalFrameN += 1
-
     def threadRunnable(self):
         # Check if there are more image specs to process
         imageSpec = getFromQueue(self.imageSpecQueue)
@@ -187,6 +154,35 @@ class Scriptor:
             
         # Flag as finished
         imageSpec.resultHolder.isFinished = True
+
+    def processResults(self):
+        # self.resultQueue has been prefilled (to keep results in the correct order),
+        # so we just need to keep going until it is empty
+        currentResult = getFromQueue(self.resultQueue)
+        while not currentResult is None:
+
+            resultImage = getFromQueue(currentResult.imageQueue)
+            # Continue until flagged as finished and all images are out of the queue
+            while (not currentResult.isFinished) or (not resultImage is None):
+                
+                # Either we have an image to write or we have to wait for one
+                if not resultImage is None:
+                    self.writeResultImage(resultImage)
+                else:
+                    time.sleep(0.2)
+
+                resultImage = getFromQueue(currentResult.imageQueue)
+
+            currentResult = getFromQueue(self.resultQueue)
+
+    def writeResultImage(self, image):
+        # Write frame to video
+        self.writer.append_data(image)
+
+        # Write frame to image if set up
+        if not self.outputFrames is None:
+            imageio.imwrite(self.outputFrames % self.globalFrameN, image)
+        self.globalFrameN += 1
 
     # Scales the frameNumber to the current position in the animation to a fraction
     # between 0 and 1.
