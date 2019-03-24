@@ -43,10 +43,10 @@ class Scriptor:
             self.imageSpecQueue = queue.Queue()
             self.resultQueue = queue.Queue()
             self.prevSpec = None
-            images = rootSpec.get('images', [])
 
-            # Parse images in script
-            self.parseImages(images, rootSpec)
+            # Prepare data structures for processing
+            images = rootSpec.get('images', [])
+            self.prepareImageSpecs(images, rootSpec)
 
             # Start processing image specs by launching worker threads
             self.globalFrameN = 0
@@ -65,7 +65,7 @@ class Scriptor:
             if not audioSpec is None:
                 self.combineVideoWithAudio(audioSpec, videoOut, os.path.join('output', 'combined.mp4'))
     
-    def parseImages(self, images, parentSpec):
+    def prepareImageSpecs(self, images, parentSpec):
         """ Walks through the image specs recursively, in order, links them, adds them to a
             queue and creates the holder for the result.
         """
@@ -73,9 +73,9 @@ class Scriptor:
             itemSpec = Spec(item, parentSpec)
 
             subgroup = itemSpec.get('images', None, doRecurse=False)
-            if (not subgroup is None):
+            if not subgroup is None:
                 # Recurse
-                self.parseImages(subgroup, itemSpec)
+                self.prepareImageSpecs(subgroup, itemSpec)
             else:
                 # Set up result holder
                 itemSpec.resultHolder = ResultHolder()
