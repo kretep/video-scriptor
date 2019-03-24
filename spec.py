@@ -5,6 +5,7 @@ class Spec:
         self.specDict = specDict
         self.parentSpec = parentSpec
         self.nextSpec = None
+        self.resultHolder = None
 
     def get(self, key, default=None, doRecurse=True):
         """Returns the value of the specified property in the current spec,

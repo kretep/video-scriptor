@@ -4,9 +4,27 @@ import imageio
 import yaml
 import random
 import subprocess
+import queue
+import threading
+import time
 from panzoomanimation import PanZoomAnimation
 from blendtransition import BlendTransition
 from spec import Spec
+
+class ResultHolder:
+    def __init__(self):
+        self.hasInitialized = False
+        self.isFinished = False
+        self.imageQueue = queue.Queue()
+
+
+def getFromQueue(queue):
+    result = None
+    try:
+        result = queue.get_nowait()
+    except:
+        pass
+    return result
 
 class Scriptor:
 
@@ -21,62 +39,114 @@ class Scriptor:
             filename = rootSpec.get('outputfile', 'video.mp4')
             videoOut = os.path.join('output', filename)
 
+            # Initialize data structures
+            self.imageSpecQueue = queue.Queue()
+            self.resultQueue = queue.Queue()
+            self.prevSpec = None
+            images = rootSpec.get('images', [])
+
+            # Parse images in script
+            self.parseImages(images, rootSpec)
+
             # Initialize writer
             self.writer = imageio.get_writer(videoOut, 
                 fps=self.framerate,
                 macro_block_size=8)
 
-            # Parse images in script
-            self.allImageSpecs = [] # flat list of image specs
-            self.prevSpec = None
-            images = rootSpec.get('images', [])
-            self.parseImages(images, rootSpec)
-
             # Process images
             self.globalFrameN = 0
-            self.processImages(self.allImageSpecs)
+            self.processImages()
 
             self.writer.close()
 
             # Join audio
             audioSpec = rootSpec.getSpec('audio')
-            if audioSpec != None:
+            if not audioSpec is None:
                 self.combineVideoWithAudio(audioSpec, videoOut, os.path.join('output', 'combined.mp4'))
     
     def parseImages(self, images, parentSpec):
+        """ Walks through the image specs recursively, in order, links them, adds them to a
+            queue and creates the holder for the result.
+        """
         for item in images:
             itemSpec = Spec(item, parentSpec)
 
             subgroup = itemSpec.get('images', None, doRecurse=False)
-            if (subgroup != None):
+            if (not subgroup is None):
                 # Recurse
                 self.parseImages(subgroup, itemSpec)
             else:
-                # Put in flat list
-                if self.prevSpec != None:
+                # Set up result holder
+                itemSpec.resultHolder = ResultHolder()
+                self.resultQueue.put(itemSpec.resultHolder)
+
+                # Doubly link
+                if not self.prevSpec is None:
                     self.prevSpec.nextSpec = itemSpec
                 itemSpec.prevSpec = self.prevSpec
-                self.prevSpec = itemSpec
-                self.allImageSpecs.append(itemSpec)
-            
-    def processImages(self, imageSpecs):
-        for imageSpec in imageSpecs:
-            self.processImage(imageSpec)
 
-    def processImage(self, imageSpec):
+                # Put in queue
+                self.imageSpecQueue.put(itemSpec)
+
+                # Remember previous
+                self.prevSpec = itemSpec
+                
+    def processImages(self):
+        """ Launches the threads for processin the images.
+        """
+        for _ in range(16):
+            threading.Thread(target=self.threadRunnable).start()
+        self.waitForResults()
+
+    def waitForResults(self):
+        currentResult = getFromQueue(self.resultQueue)
+        while not currentResult is None:
+
+            resultImage = getFromQueue(currentResult.imageQueue)
+            # Continue until flagged as finished and all images are out of the queue
+            while (not currentResult.isFinished) or (not resultImage is None):
+                
+                # Either we have an image to write or we have to wait for one
+                if not resultImage is None:
+                    self.writeResultImage(resultImage)
+                else:
+                    time.sleep(0.2)
+
+                resultImage = getFromQueue(currentResult.imageQueue)
+
+            currentResult = getFromQueue(self.resultQueue)
+
+    def writeResultImage(self, image):
+        # Write frame to video
+        self.writer.append_data(image)
+
+        # Write frame to image if set up
+        if not self.outputFrames is None:
+            imageio.imwrite(self.outputFrames % self.globalFrameN, image)
+        self.globalFrameN += 1
+
+    def threadRunnable(self):
+        # Check if there are more image specs to process
+        imageSpec = getFromQueue(self.imageSpecQueue)
+        while not imageSpec is None:
+            self.processImageSpec(imageSpec)
+            imageSpec = getFromQueue(self.imageSpecQueue)
+        print("finished")
+
+    def processImageSpec(self, imageSpec):
         prevSpec = imageSpec.prevSpec
         nextSpec = imageSpec.nextSpec
 
         # Read image
         inputFileName = imageSpec.get('file')
-        assert inputFileName != None, 'No input file specified'
+        assert not inputFileName is None, 'No input file specified'
         npImCurrent = imageio.imread('./input/%s' % inputFileName)
         
         # Set up transition
         #TODO: relfect: transitionType = transitionSpec.get('type', 'blend')
         imageSpec.transition = transition = BlendTransition()
         transitionDuration = imageSpec.get('transitiontime', 0.5)
-        nextTransitionDuration = nextSpec.get('transitiontime', 0.5)
+        nextTransitionDuration = nextSpec.get('transitiontime', 0.5) if not nextSpec is None else 0
 
         # Set up animation
         #animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
@@ -84,7 +154,11 @@ class Scriptor:
         imageSpec.animation = animation = PanZoomAnimation(npImCurrent, imageSpec)
         imageSpec.duration = duration = imageSpec.get('duration', 2.0)
         
-        #TODO: Notify of init complete
+        # Notify of init complete and wait for previous image init complete
+        imageSpec.resultHolder.hasInitialized = True
+        if not prevSpec is None:
+            while not prevSpec.resultHolder.hasInitialized:
+                time.sleep(1)
 
         # Generate frames
         nframes = int(duration * self.framerate)
@@ -97,7 +171,7 @@ class Scriptor:
             
             # Transition
             transitionT = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
-            if transitionT < 1.0 and prevSpec != None:
+            if transitionT < 1.0 and not prevSpec is None:
                 # Animate previous image
                 animationT = self.getTForFrame(prevSpec.duration * self.framerate + i,
                     prevSpec.duration + transitionDuration, self.framerate)
@@ -108,17 +182,11 @@ class Scriptor:
             else:
                 npResult = npIm1
 
-            # Write frame to video
-            self.writer.append_data(npResult)
-
-            # Write frame to image if set up
-            if self.outputFrames != None:
-                imageio.imwrite(self.outputFrames % self.globalFrameN, npResult)
+            # Put result in queue to be written
+            imageSpec.resultHolder.imageQueue.put(npResult)
             
-            self.globalFrameN += 1
-            if (self.limitFrames != None and self.globalFrameN >= self.limitFrames):
-                break
-
+        # Flag as finished
+        imageSpec.resultHolder.isFinished = True
 
     # Scales the frameNumber to the current position in the animation to a fraction
     # between 0 and 1.
@@ -130,7 +198,7 @@ class Scriptor:
     def combineVideoWithAudio(self, audioSpec, videoIn, videoOut):
         def maybe(option, key, spec):
             value = spec.get(key)
-            return [option, str(value)] if value != None else []
+            return [option, str(value)] if not value is None else []
         audioIn = audioSpec.get('file')
         cmd_out = ['ffmpeg',
                 '-y',
