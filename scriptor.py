@@ -32,6 +32,8 @@ class Scriptor:
         with open('video.spec.yml') as t:
             self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
             self.framerate = rootSpec.get('framerate', 30)
+            self.frameWidth = rootSpec.get('framewidth', 1440)
+            self.frameHeight = rootSpec.get('frameheight', 1080)
             self.outputFrames = rootSpec.get('outputframes')
             self.limitFrames = rootSpec.get('limitframes')
             random.seed(rootSpec.get('randomseed'))
@@ -106,8 +108,11 @@ class Scriptor:
 
         # Read image
         inputFileName = imageSpec.get('file')
-        assert not inputFileName is None, 'No input file specified'
-        npImCurrent = imageio.imread('./input/%s' % inputFileName)
+        #assert not inputFileName is None, 'No input file specified'
+        if inputFileName is None:
+            npImCurrent = np.zeros((self.frameHeight, self.frameWidth, 3), dtype='uint8')
+        else:
+            npImCurrent = imageio.imread('./input/%s' % inputFileName)
         
         # Set up transition
         #TODO: relfect: transitionType = transitionSpec.get('type', 'blend')
