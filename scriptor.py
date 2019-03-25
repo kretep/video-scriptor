@@ -27,7 +27,16 @@ def getFromQueue(queue):
     return result
 
 class Scriptor:
-
+    """
+    The phases of processing:
+    - Set up data structures and global attributes
+    - Prepare image specs and organize them
+    - Launch threads and for each thread:
+      - Initialize image spec (read input image, set up (random) attributes for animation and transition)
+      - Generate frames and store results in queue
+    - In main thread: wait for results and write to video
+    - Join video with audio
+    """
     def generateVideo(self):
         with open('video.spec.yml') as t:
             self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
@@ -43,6 +52,7 @@ class Scriptor:
 
             # Initialize data structures
             self.imageSpecQueue = queue.Queue()
+#>>>            self.imageFrameQueue = queue.Queue()
             self.resultQueue = queue.Queue()
             self.prevSpec = None
 
@@ -130,7 +140,7 @@ class Scriptor:
         imageSpec.resultHolder.hasInitialized = True
         if not prevSpec is None:
             while not prevSpec.resultHolder.hasInitialized:
-                time.sleep(1)
+                time.sleep(0.1)
 
         # Generate frames
         nframes = int(duration * self.framerate)

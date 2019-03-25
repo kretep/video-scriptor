@@ -5,6 +5,7 @@ class Spec:
         self.specDict = specDict
         self.parentSpec = parentSpec
         self.nextSpec = None
+        self.prevSpec = None
         self.resultHolder = None
 
     def get(self, key, default=None, doRecurse=True):
