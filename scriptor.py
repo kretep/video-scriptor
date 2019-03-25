@@ -162,6 +162,13 @@ class Scriptor:
                 # Combine transition images
                 npResult = transition.processTransition(npIm0, npIm1, transitionT)
             else:
+                if not prevSpec is None:
+                    # Clean up finished spec
+                    prevSpec.animation = None
+                    prevSpec.transition = None
+                    prevSpec.nextSpec = None
+                    imageSpec.prevSpec = prevSpec = None
+                
                 npResult = npIm1
 
             # Put result in queue to be written
