@@ -13,9 +13,7 @@ from spec import Spec
 
 class ResultHolder:
     def __init__(self):
-        self.hasInitialized = False
-        self.isFinished = False
-        self.imageQueue = queue.Queue()
+        self.frames = []
 
 
 def getFromQueue(queue):
@@ -52,7 +50,7 @@ class Scriptor:
 
             # Initialize data structures
             self.imageSpecQueue = queue.Queue()
-#>>>            self.imageFrameQueue = queue.Queue()
+            self.imageFrameQueue = queue.Queue()
             self.resultQueue = queue.Queue()
             self.prevSpec = None
 
@@ -60,10 +58,13 @@ class Scriptor:
             images = rootSpec.get('images', [])
             self.prepareImageSpecs(images, rootSpec)
 
+            # One thread to initialize image specs
+            threading.Thread(target=self.runnableInitImageSpecs).start()
+            
             # Start processing image specs by launching worker threads
             self.globalFrameN = 0
             for _ in range(self.rootSpec.get('threads', 16)):
-                threading.Thread(target=self.threadRunnable).start()
+                threading.Thread(target=self.runnableProcessFrame).start()
 
             # In the current thread, wait for and write the results
             self.writer = imageio.get_writer(videoOut, 
@@ -103,19 +104,19 @@ class Scriptor:
 
                 # Remember previous
                 self.prevSpec = itemSpec
-                
-    def threadRunnable(self):
+    
+    def runnableInitImageSpecs(self):
         # Check if there are more image specs to process
         imageSpec = getFromQueue(self.imageSpecQueue)
         while not imageSpec is None:
-            self.processImageSpec(imageSpec)
+            self.initializeImageSpec(imageSpec)
+
+            #TODO: wait for processing finished
+
             imageSpec = getFromQueue(self.imageSpecQueue)
         print("finished")
 
-    def processImageSpec(self, imageSpec):
-        prevSpec = imageSpec.prevSpec
-        nextSpec = imageSpec.nextSpec
-
+    def initializeImageSpec(self, imageSpec):
         # Read image
         inputFileName = imageSpec.get('file')
         #assert not inputFileName is None, 'No input file specified'
@@ -126,56 +127,67 @@ class Scriptor:
         
         # Set up transition
         #TODO: relfect: transitionType = transitionSpec.get('type', 'blend')
-        imageSpec.transition = transition = BlendTransition()
-        transitionDuration = imageSpec.get('transitiontime', 0.5)
-        nextTransitionDuration = nextSpec.get('transitiontime', 0.5) if not nextSpec is None else 0
+        imageSpec.transition = BlendTransition()
 
         # Set up animation
         #animationType = animationSpec.get(Props.IMAGE_ANIMATION_TYPE)
         #TODO: use reflection to instantiate:
-        imageSpec.animation = animation = PanZoomAnimation(npImCurrent, imageSpec)
+        imageSpec.animation = PanZoomAnimation(npImCurrent, imageSpec)
         imageSpec.duration = duration = imageSpec.get('duration', 2.0)
         
-        # Notify of init complete and wait for previous image init complete
-        imageSpec.resultHolder.hasInitialized = True
-        if not prevSpec is None:
-            while not prevSpec.resultHolder.hasInitialized:
-                time.sleep(0.1)
 
-        # Generate frames
         nframes = int(duration * self.framerate)
+        imageSpec.resultHolder.frames = [None] * nframes
         for i in range(0, nframes):
-            print("processing %s frame %d" % (inputFileName, i))
+            self.imageFrameQueue.put((imageSpec, i))
 
-            # Animate image
-            animationT = self.getTForFrame(i, duration + nextTransitionDuration, self.framerate)
-            npIm1 = animation.animate(animationT)
+    def runnableProcessFrame(self):
+        imageFrame = getFromQueue(self.imageFrameQueue)
+        while not imageFrame is None:
+            (imageSpec, frameNr) = imageFrame
+            self.processFrame(imageSpec, frameNr)
+            imageFrame = getFromQueue(self.imageFrameQueue)
+
+        #TODO: wait and repeat
+        
+    def processFrame(self, imageSpec, i):
+        prevSpec = imageSpec.prevSpec
+        nextSpec = imageSpec.nextSpec
+        transitionDuration = imageSpec.get('transitiontime', 0.5)
+        nextTransitionDuration = imageSpec.nextSpec.get('transitiontime', 0.5) \
+            if not imageSpec.nextSpec is None else 0
+        duration = imageSpec.duration
+        animation = imageSpec.animation
+        transition = imageSpec.transition
+
+        print("processing %s frame %d" % (imageSpec.get('file'), i))
+
+        # Animate image
+        animationT = self.getTForFrame(i, duration + nextTransitionDuration, self.framerate)
+        npIm1 = animation.animate(animationT)
+        
+        # Transition
+        transitionT = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
+        if transitionT < 1.0 and not prevSpec is None:
+            # Animate previous image
+            animationT = self.getTForFrame(prevSpec.duration * self.framerate + i,
+                prevSpec.duration + transitionDuration, self.framerate)
+            npIm0 = prevSpec.animation.animate(animationT)
+
+            # Combine transition images
+            npResult = transition.processTransition(npIm0, npIm1, transitionT)
+        else:
+            if not prevSpec is None:
+                # Clean up finished spec
+                prevSpec.animation = None
+                prevSpec.transition = None
+                prevSpec.nextSpec = None
+                imageSpec.prevSpec = prevSpec = None
             
-            # Transition
-            transitionT = 1.0 if (transitionDuration == 0) else i / (transitionDuration * self.framerate)
-            if transitionT < 1.0 and not prevSpec is None:
-                # Animate previous image
-                animationT = self.getTForFrame(prevSpec.duration * self.framerate + i,
-                    prevSpec.duration + transitionDuration, self.framerate)
-                npIm0 = prevSpec.animation.animate(animationT)
+            npResult = npIm1
 
-                # Combine transition images
-                npResult = transition.processTransition(npIm0, npIm1, transitionT)
-            else:
-                if not prevSpec is None:
-                    # Clean up finished spec
-                    prevSpec.animation = None
-                    prevSpec.transition = None
-                    prevSpec.nextSpec = None
-                    imageSpec.prevSpec = prevSpec = None
-                
-                npResult = npIm1
-
-            # Put result in queue to be written
-            imageSpec.resultHolder.imageQueue.put(npResult)
-            
-        # Flag as finished
-        imageSpec.resultHolder.isFinished = True
+        # Put result in list to be written
+        imageSpec.resultHolder.frames[i] = npResult
 
     def processResults(self):
         # self.resultQueue has been prefilled (to keep results in the correct order),
@@ -183,17 +195,12 @@ class Scriptor:
         currentResult = getFromQueue(self.resultQueue)
         while not currentResult is None:
 
-            resultImage = getFromQueue(currentResult.imageQueue)
-            # Continue until flagged as finished and all images are out of the queue
-            while (not currentResult.isFinished) or (not resultImage is None):
-                
-                # Either we have an image to write or we have to wait for one
-                if not resultImage is None:
-                    self.writeResultImage(resultImage)
-                else:
-                    time.sleep(0.2)
-
-                resultImage = getFromQueue(currentResult.imageQueue)
+            for i in range(len(currentResult.frames)):
+                # Wait for result
+                while currentResult.frames[i] is None:
+                    time.sleep(0.1)
+                # Process result
+                self.writeResultImage(currentResult.frames[i])
 
             currentResult = getFromQueue(self.resultQueue)
 
