@@ -11,11 +11,6 @@ from panzoomanimation import PanZoomAnimation
 from blendtransition import BlendTransition
 from spec import Spec
 
-class ResultHolder:
-    def __init__(self):
-        self.frames = []
-
-
 def getFromQueue(queue):
     result = None
     try:
@@ -53,12 +48,13 @@ class Scriptor:
             self.imageFrameQueue = queue.Queue()
             self.resultQueue = queue.Queue()
             self.prevSpec = None
+            self.allImageSpecsInitialized = False
 
             # Prepare data structures for processing
             images = rootSpec.get('images', [])
             self.prepareImageSpecs(images, rootSpec)
 
-            # One thread to initialize image specs
+            # Start one thread to initialize image specs
             threading.Thread(target=self.runnableInitImageSpecs).start()
             
             # Start processing image specs by launching worker threads
@@ -80,7 +76,7 @@ class Scriptor:
     
     def prepareImageSpecs(self, images, parentSpec):
         """ Walks through the image specs recursively, in order, links them, adds them to a
-            queue and creates the holder for the result.
+            queue and creates the holder for the results.
         """
         for item in images:
             itemSpec = Spec(item, parentSpec)
@@ -90,9 +86,8 @@ class Scriptor:
                 # Recurse
                 self.prepareImageSpecs(subgroup, itemSpec)
             else:
-                # Set up result holder
-                itemSpec.resultHolder = ResultHolder()
-                self.resultQueue.put(itemSpec.resultHolder)
+                # Add to result queue
+                self.resultQueue.put(itemSpec)
 
                 # Doubly link
                 if not self.prevSpec is None:
@@ -106,15 +101,22 @@ class Scriptor:
                 self.prevSpec = itemSpec
     
     def runnableInitImageSpecs(self):
-        # Check if there are more image specs to process
+        # Initialize image specs while they are available
+        # (the queue is pre-filled, so when it's empty, we're done)
         imageSpec = getFromQueue(self.imageSpecQueue)
         while not imageSpec is None:
             self.initializeImageSpec(imageSpec)
 
-            #TODO: wait for processing finished
+            # Wait with initializing next image spec
+            # (we don't want to initialize and load too early, to limit memory usage)
+            while self.imageFrameQueue.qsize() > 60:
+                time.sleep(0.1)
 
             imageSpec = getFromQueue(self.imageSpecQueue)
-        print("finished")
+        
+        # Flag that allows frame processing threads to finish if there are no more frames
+        self.allImageSpecsInitialized = True
+        print("finished processing image specs")
 
     def initializeImageSpec(self, imageSpec):
         # Read image
@@ -137,30 +139,36 @@ class Scriptor:
         
 
         nframes = int(duration * self.framerate)
-        imageSpec.resultHolder.frames = [None] * nframes
+        imageSpec.frames = [None] * nframes
         for i in range(0, nframes):
             self.imageFrameQueue.put((imageSpec, i))
 
     def runnableProcessFrame(self):
         imageFrame = getFromQueue(self.imageFrameQueue)
-        while not imageFrame is None:
-            (imageSpec, frameNr) = imageFrame
-            self.processFrame(imageSpec, frameNr)
+        while (not imageFrame is None) or (not self.allImageSpecsInitialized):
+
+            # Either we have an image to process or we have to wait for one
+            if not imageFrame is None:
+                (imageSpec, frameNr) = imageFrame
+                self.processFrame(imageSpec, frameNr)
+            else:
+                time.sleep(0.1)
+
             imageFrame = getFromQueue(self.imageFrameQueue)
 
-        #TODO: wait and repeat
+        print("finished processing frames")
         
     def processFrame(self, imageSpec, i):
         prevSpec = imageSpec.prevSpec
         nextSpec = imageSpec.nextSpec
         transitionDuration = imageSpec.get('transitiontime', 0.5)
-        nextTransitionDuration = imageSpec.nextSpec.get('transitiontime', 0.5) \
-            if not imageSpec.nextSpec is None else 0
+        nextTransitionDuration = nextSpec.get('transitiontime', 0.5) \
+            if not nextSpec is None else 0
         duration = imageSpec.duration
         animation = imageSpec.animation
         transition = imageSpec.transition
 
-        print("processing %s frame %d" % (imageSpec.get('file'), i))
+        print("processing %s frame %d/%d" % (imageSpec.get('file'), i + 1, len(imageSpec.frames)))
 
         # Animate image
         animationT = self.getTForFrame(i, duration + nextTransitionDuration, self.framerate)
@@ -177,17 +185,10 @@ class Scriptor:
             # Combine transition images
             npResult = transition.processTransition(npIm0, npIm1, transitionT)
         else:
-            if not prevSpec is None:
-                # Clean up finished spec
-                prevSpec.animation = None
-                prevSpec.transition = None
-                prevSpec.nextSpec = None
-                imageSpec.prevSpec = prevSpec = None
-            
             npResult = npIm1
 
         # Put result in list to be written
-        imageSpec.resultHolder.frames[i] = npResult
+        imageSpec.frames[i] = npResult
 
     def processResults(self):
         # self.resultQueue has been prefilled (to keep results in the correct order),
@@ -195,12 +196,25 @@ class Scriptor:
         currentResult = getFromQueue(self.resultQueue)
         while not currentResult is None:
 
+            # Wait for initialization
+            while currentResult.frames is None:
+                time.sleep(0.1)
+
+            # Wait for and process each result frame in order
             for i in range(len(currentResult.frames)):
                 # Wait for result
                 while currentResult.frames[i] is None:
                     time.sleep(0.1)
                 # Process result
                 self.writeResultImage(currentResult.frames[i])
+
+            # Clean up unused references to free memory
+            if not currentResult.prevSpec is None:
+                # Clean up finished spec so memory can be released
+                currentResult.prevSpec.animation = None
+                currentResult.prevSpec.transition = None
+                currentResult.prevSpec.nextSpec = None
+                currentResult.prevSpec = None
 
             currentResult = getFromQueue(self.resultQueue)
 

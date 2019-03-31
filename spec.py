@@ -6,7 +6,7 @@ class Spec:
         self.parentSpec = parentSpec
         self.nextSpec = None
         self.prevSpec = None
-        self.resultHolder = None
+        self.frames = None
 
     def get(self, key, default=None, doRecurse=True):
         """Returns the value of the specified property in the current spec,
