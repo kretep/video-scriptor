@@ -206,6 +206,8 @@ class Scriptor:
                     time.sleep(0.1)
                 # Process result
                 self.writeResultImage(currentResult.frames[i])
+                # Clean up
+                currentResult.frames[i] = None
 
             # Clean up unused references to free memory
             if not currentResult.prevSpec is None:
