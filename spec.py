@@ -4,7 +4,6 @@ class Spec:
     def __init__(self, specDict, parentSpec):
         self.specDict = specDict
         self.parentSpec = parentSpec
-        self.nextSpec = None
         self.prevSpec = None
         self.frames = None
 

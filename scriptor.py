@@ -89,9 +89,12 @@ class Scriptor:
                 # Add to result queue
                 self.resultQueue.put(itemSpec)
 
-                # Doubly link
+                # Set variable in prev spec that it needs from the current spec
                 if not self.prevSpec is None:
-                    self.prevSpec.nextSpec = itemSpec
+                    self.prevSpec.nextTransitionDuration = itemSpec.get('transitiontime', 0)
+                itemSpec.nextTransitionDuration = 0 # default (for last spec)
+
+                # Link
                 itemSpec.prevSpec = self.prevSpec
 
                 # Put in queue
@@ -160,11 +163,9 @@ class Scriptor:
         
     def processFrame(self, imageSpec, i):
         prevSpec = imageSpec.prevSpec
-        nextSpec = imageSpec.nextSpec
         transitionDuration = imageSpec.get('transitiontime', 0.5)
-        nextTransitionDuration = nextSpec.get('transitiontime', 0.5) \
-            if not nextSpec is None else 0
         duration = imageSpec.duration
+        nextTransitionDuration = imageSpec.nextTransitionDuration
         animation = imageSpec.animation
         transition = imageSpec.transition
 
@@ -213,7 +214,6 @@ class Scriptor:
                 # Clean up finished spec so memory can be released
                 currentResult.prevSpec.animation = None
                 currentResult.prevSpec.transition = None
-                currentResult.prevSpec.nextSpec = None
                 currentResult.prevSpec = None
 
             currentResult = getFromQueue(self.resultQueue)
