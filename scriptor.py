@@ -86,9 +86,6 @@ class Scriptor:
                 # Recurse
                 self.prepareImageSpecs(subgroup, itemSpec)
             else:
-                # Add to result queue
-                self.resultQueue.put(itemSpec)
-
                 # Set variable in prev spec that it needs from the current spec
                 if not self.prevSpec is None:
                     self.prevSpec.nextTransitionDuration = itemSpec.get('transitiontime', 0)
@@ -97,8 +94,9 @@ class Scriptor:
                 # Link
                 itemSpec.prevSpec = self.prevSpec
 
-                # Put in queue
+                # Put in queues
                 self.imageSpecQueue.put(itemSpec)
+                self.resultQueue.put(itemSpec)
 
                 # Remember previous
                 self.prevSpec = itemSpec
