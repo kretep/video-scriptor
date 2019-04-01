@@ -9,7 +9,7 @@ import threading
 import time
 from panzoomanimation import PanZoomAnimation
 from blendtransition import BlendTransition
-from spec import Spec
+from spec import Spec, ImageSpec
 
 def getFromQueue(queue):
     result = None
@@ -79,17 +79,13 @@ class Scriptor:
             queue and creates the holder for the results.
         """
         for item in images:
-            itemSpec = Spec(item, parentSpec)
+            itemSpec = ImageSpec(item, parentSpec)
 
             subgroup = itemSpec.get('images', None, doRecurse=False)
-            if not subgroup is None:
-                # Recurse
-                self.prepareImageSpecs(subgroup, itemSpec)
-            else:
-                # Set variable in prev spec that it needs from the current spec
+            if subgroup is None:
+                # Set required variable in prev spec from current spec
                 if not self.prevSpec is None:
                     self.prevSpec.nextTransitionDuration = itemSpec.get('transitiontime', 0)
-                itemSpec.nextTransitionDuration = 0 # default (for last spec)
 
                 # Link
                 itemSpec.prevSpec = self.prevSpec
@@ -100,6 +96,9 @@ class Scriptor:
 
                 # Remember previous
                 self.prevSpec = itemSpec
+            else:
+                # Recurse
+                self.prepareImageSpecs(subgroup, itemSpec)
     
     def runnableInitImageSpecs(self):
         # Initialize image specs while they are available
