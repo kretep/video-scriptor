@@ -1,3 +1,4 @@
+import sys
 import os
 import numpy as np
 import imageio
@@ -24,59 +25,59 @@ class Scriptor:
     The phases of processing:
     - Set up data structures and global attributes
     - Prepare image specs and organize them
-    - Launch threads and for each thread:
-      - Initialize image spec (read input image, set up (random) attributes for animation and transition)
-      - Generate frames and store results in queue
+    - Launch one thread to initialize image spec (read input image, set up (random) attributes for animation and transition)
+    - Launch multiple threads to generate frames and store results
     - In main thread: wait for results and write to video
     - Join video with audio
     """
-    def generateVideo(self):
-        with open('video.spec.yml') as t:
-            self.rootSpec = rootSpec = Spec(yaml.safe_load(t), None)
-            self.framerate = rootSpec.get('framerate', 30)
-            self.frameWidth = rootSpec.get('framewidth', 1440)
-            self.frameHeight = rootSpec.get('frameheight', 1080)
-            self.outputFrames = rootSpec.get('outputframes')
-            self.limitFrames = rootSpec.get('limitframes')
-            random.seed(rootSpec.get('randomseed'))
+    def generateVideo(self, scriptFile):
+        with open(scriptFile) as t:
+            self.rootSpec = Spec(yaml.safe_load(t), None)
 
-            filename = rootSpec.get('outputfile', 'video.mp4')
-            videoOut = os.path.join('output', filename)
+        rootSpec = self.rootSpec
+        self.framerate = rootSpec.get('framerate', 30)
+        self.frameWidth = rootSpec.get('framewidth', 1440)
+        self.frameHeight = rootSpec.get('frameheight', 1080)
+        self.outputFrames = rootSpec.get('outputframes')
+        self.limitFrames = rootSpec.get('limitframes')
+        random.seed(rootSpec.get('randomseed'))
 
-            # Initialize data structures
-            self.imageSpecQueue = queue.Queue()
-            self.imageFrameQueue = queue.Queue()
-            self.resultQueue = queue.Queue()
-            self.prevSpec = None
-            self.allImageSpecsInitialized = False
+        outputFile = rootSpec.get('outputfile', 'video.mp4')
+        videoOut = outputFile + '.temp.mp4'
 
-            # Prepare data structures for processing
-            images = rootSpec.get('images', [])
-            self.prepareImageSpecs(images, rootSpec)
+        # Initialize data structures
+        self.imageSpecQueue = queue.Queue()
+        self.imageFrameQueue = queue.Queue()
+        self.resultQueue = queue.Queue()
+        self.prevSpec = None
+        self.allImageSpecsInitialized = False
 
-            # Start one thread to initialize image specs
-            threading.Thread(target=self.runnableInitImageSpecs).start()
-            
-            # Start processing image specs by launching worker threads
-            self.globalFrameN = 0
-            for _ in range(self.rootSpec.get('threads', 16)):
-                threading.Thread(target=self.runnableProcessFrame).start()
+        # Prepare data structures for processing
+        images = rootSpec.get('images', [])
+        self.prepareImageSpecs(images, rootSpec)
 
-            # In the current thread, wait for and write the results
-            self.writer = imageio.get_writer(videoOut, 
-                fps=self.framerate,
-                macro_block_size=8)
-            self.processResults()
-            self.writer.close()
+        # Start one thread to initialize image specs
+        threading.Thread(target=self.runnableInitImageSpecs).start()
+        
+        # Start processing image specs by launching worker threads
+        self.globalFrameN = 0
+        for _ in range(self.rootSpec.get('threads', 16)):
+            threading.Thread(target=self.runnableProcessFrame).start()
 
-            # Join audio
-            audioSpec = rootSpec.getSpec('audio')
-            if not audioSpec is None:
-                self.combineVideoWithAudio(audioSpec, videoOut, os.path.join('output', 'combined.mp4'))
+        # In the current thread, wait for and write the results
+        self.writer = imageio.get_writer(videoOut, 
+            fps=self.framerate,
+            macro_block_size=8)
+        self.processResults()
+        self.writer.close()
+
+        # Join audio
+        audioSpec = rootSpec.getSpec('audio')
+        if not audioSpec is None:
+            self.combineVideoWithAudio(audioSpec, videoOut, outputFile)
     
     def prepareImageSpecs(self, images, parentSpec):
-        """ Walks through the image specs recursively, in order, links them, adds them to a
-            queue and creates the holder for the results.
+        """ Walks through the image specs recursively, in order, links them, adds them to the queues.
         """
         for item in images:
             itemSpec = ImageSpec(item, parentSpec)
@@ -87,15 +88,13 @@ class Scriptor:
                 if not self.prevSpec is None:
                     self.prevSpec.nextTransitionDuration = itemSpec.get('transitiontime', 0)
 
-                # Link
+                # Link and remember previous
                 itemSpec.prevSpec = self.prevSpec
+                self.prevSpec = itemSpec
 
                 # Put in queues
                 self.imageSpecQueue.put(itemSpec)
                 self.resultQueue.put(itemSpec)
-
-                # Remember previous
-                self.prevSpec = itemSpec
             else:
                 # Recurse
                 self.prepareImageSpecs(subgroup, itemSpec)
@@ -107,8 +106,10 @@ class Scriptor:
         while not imageSpec is None:
             self.initializeImageSpec(imageSpec)
 
-            # Wait with initializing next image spec
-            # (we don't want to initialize and load too early, to limit memory usage)
+            # Wait with initializing next image spec.
+            # (we don't want to initialize and load too early, to limit memory usage,
+            # but we also don't want to load too late, because it will block the threads,
+            # so start loading when we have less than a certain amount of frames to process)
             while self.imageFrameQueue.qsize() > 60:
                 time.sleep(0.1)
 
@@ -255,4 +256,4 @@ class Scriptor:
 
 if __name__ == "__main__":
     scriptor = Scriptor()
-    scriptor.generateVideo()
+    scriptor.generateVideo(sys.argv[1])
