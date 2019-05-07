@@ -244,10 +244,11 @@ class Scriptor:
                 *maybe('-ss', 'audiooffset', audioSpec),
                 *maybe('-itsoffset', 'videooffset', audioSpec),
                 '-i', audioIn,
-                '-c', 'copy',
+                #'-c', 'copy',
                 '-map', '0:v',
                 '-map', '1:a',
                 '-shortest',
+                '-filter:a', 'afade=t=out:st=144:d=8',
                 videoOut]
         pipe = subprocess.Popen(cmd_out)
         pipe.wait()
