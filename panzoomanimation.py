@@ -1,22 +1,45 @@
 import random
 from scipy.ndimage.interpolation import affine_transform
+maxScale = 1.1
 
 class PanZoomAnimation:
+
     def __init__(self, npIm, spec):
         self.npIm = npIm
         self.frameWidth = spec.getRootValue('framewidth', 1440)
         self.frameHeight = spec.getRootValue('frameheight', 1080)
         self.interpolationOrder = spec.get('interpolationorder', 1)
-        (self.x0, self.y0, self.s0) = \
-            self.getRandomAnimationPoint(spec.get('x0'), spec.get('y0'), spec.get('s0'))
-        (self.x1, self.y1, self.s1) = \
-            self.getRandomAnimationPoint(spec.get('x1'), spec.get('y1'), spec.get('s1'))
+
+        # Preset
+        self.animationPreset = spec.get('animation-preset', None)
+        (x0, y0, s0, x1, y1, s1) = 6 * [None]
+        if not self.animationPreset is None:
+            presets = {
+                'top-bottom': (0.5, 0.0, maxScale, 0.5, 1.0, maxScale),
+                'bottom-top': (0.5, 1.0, maxScale, 0.5, 0.0, maxScale),
+                'left-right': (0.0, 0.5, maxScale, 1.0, 0.5, maxScale),
+                'right-left': (1.0, 0.5, maxScale, 0.0, 0.5, maxScale),
+                'zoom-in-center': (0.5, 0.5, 1.0, 0.5, 0.5, maxScale),
+                'zoom-out-center': (0.5, 0.5, maxScale, 0.5, 0.5, 1.0)
+            }
+            (x0, y0, s0, x1, y1, s1) = presets[self.animationPreset]
+
+        # Override preset / default
+        (x0, y0, s0) = (spec.get('x0', x0), spec.get('y0', y0), spec.get('s0', s0))
+        (x1, y1, s1) = (spec.get('x1', x1), spec.get('y1', y1), spec.get('s1', s1))
+
+        # Generate animation points and scale to bounds
+        (self.x0, self.y0, self.s0) = self.getRandomAnimationPoint(x0, y0, s0)
+        (self.x1, self.y1, self.s1) = self.getRandomAnimationPoint(x1, y1, s1)
         print(self.x0, self.y0, self.s0, self.x1, self.y1, self.s1)
 
     def getRandomAnimationPoint(self, fx, fy, fs):
-        scale = 1.0 + 0.2 * random.random() if fs == None else fs
-        fx = random.random() if fx == None else fx
-        fy = random.random() if fy == None else fy
+        r = (random.random(), random.random(), random.random()) # always generate, even if not using
+        scale = 1.0 + (maxScale - 1.0) * r[0] if fs == None else fs
+        fx = r[1] if fx == None else fx
+        fy = r[2] if fy == None else fy
+        # TODO: limit y-range in wide-screen
+        # fy = 0.8 * fy + 0.1
 
         originalWidth = self.npIm.shape[1]
         originalHeight = self.npIm.shape[0]
