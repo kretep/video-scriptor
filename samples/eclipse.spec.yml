@@ -1,0 +1,201 @@
+# This script was used to generate this video: https://www.youtube.com/watch?v=bj8ftGfUbGE
+
+# The output video
+outputfile: output/video.mp4
+
+# In case you want separate frames
+#outputframes: './output/%04d.png'
+
+# Frame rate per second
+framerate: 60
+
+# Frame dimensions in pixels
+# 4K 4:3
+framewidth: 2880
+frameheight: 2160
+
+# 4K 16:9
+#framewidth: 3840
+#frameheight: 2160
+
+# Macbook pro
+# framewidth: 2880
+# frameheight: 1800
+
+# HD 4:3
+#framewidth: 1440
+#frameheight: 1080
+
+# preview 4:3
+# framewidth: 640
+# frameheight: 480
+
+# only render the first n frames (for previewing)
+#limitframes: 200
+
+# Interpolation order
+interpolationorder: 1
+
+# Use a seed to make random values reproduceable between renders
+randomseed: 42
+
+# The number of threads to spawn for parallel processing,
+# besides one thread that reads the images and one thread that writes the video
+threads: 8
+
+# Optionally specify an audio file to be added to the video
+audio:
+  # The path of the audio file
+  file: input/San Holo - Light __CLIPPED__.mp3
+
+  # Skip this amount of the audio (-ss in ffmpeg)
+  # audiooffset: 64.5
+
+  # Start the audio at this point in the video (-itsoffset in ffmpeg) 
+  # videooffset: 5.0
+
+# 'images' is an array of objects that can either be an image file spec
+# or have an images array themselves (recursively), to group certain sequences.
+# Properties of an image file spec, such as duration, animation type and transition
+# can be specified at each level (to prevent repetition) and are looked up
+# from the file spec upward in the tree until they are found.
+images:
+  - 
+    # The duration this image will be visible. Not including the transition with the next image,
+    # which will be counted within the next image's duration. In other words, the image will
+    # be visible for this duration, plus the duration where it transitions to the next image.
+    duration: 3.5
+
+    # The animation to use. Currently supported: none, panzoom
+    animation: panzoom
+
+    # During a transition, the previous image will be (partially) combined with the current.
+    # Currently supported: none, blend
+    transition: blend
+
+    # The time the transition will take (this is within the current image's duration)
+    transitiontime: 1.0
+
+    # Group of image files that will take the above properties as their default properties,
+    # or override them with specific ones
+    images:
+      - 
+        # pre-eclipse
+        duration: 3.2
+        images:
+          - generate: black
+            duration: 3.0
+          - file: VS/DSC02493.JPG
+            duration: 9.7
+            transitiontime: 3.0
+          - file: VS/DSC02601.JPG
+          - file: VS/DSC02639.JPG
+          - file: VS/DSC02625.JPG
+            animation-preset: bottom-top
+            x1: 0.3
+            s1: 1.0
+          - file: VS/DSC02485.JPG
+          - file: VS/DSC03199.JPG
+            animation-preset: left-right
+            s1: 1.1
+            y1: 0.6
+          - file: VS/DSC03125.JPG
+          - file: VS/DSC02677.JPG
+          - file: VS/DSC02686.JPG
+          - file: VS/DSC02700.JPG
+          - file: VS/DSC03152.JPG
+            animation-preset: left-right
+          - file: VS/IMG_20170826_071256.jpg
+          - file: VS/DSC02732.JPG
+          - file: VS/DSC02806.JPG
+          - file: VS/DSC02742.JPG
+          - file: VS/DSC02744.JPG
+          - file: VS/DSC02773.JPG
+            animation-preset: zoom-in-center
+      - 
+        # eclipse
+        animation: none
+        x0: 0.5
+        y0: 0.5
+        s0: 1.0
+        x1: 0.5
+        y1: 0.5
+        s1: 1.0
+        transitiontime: 1.5
+        images:
+          - file: 01.jpg
+            duration: 2.0
+            transitiontime: 0.5
+          - file: 02.jpg
+            duration: 1.5
+            transitiontime: 0.5
+          - file: 03.jpg
+            duration: 1.5
+            transitiontime: 0.5
+          - file: 04.jpg
+            duration: 1.5
+            transitiontime: 0.5
+          - file: 05.jpg
+            duration: 0.8
+            transitiontime: 0.5
+          - file: 06.jpg
+            duration: 0.8
+            transitiontime: 0.5
+          - file: 07.jpg
+            duration: 0.8
+            transitiontime: 0.5
+          - file: 08.jpg
+            duration: 0.8
+            transitiontime: 0.5
+          - file: 09.jpg
+            duration: 0.8
+            transitiontime: 0.5
+          - file: 11.jpg
+            duration: 2.5
+            transitiontime: 0.5
+          - file: 12.jpg
+            duration: 3.2
+          - file: 13.jpg
+            duration: 3.2
+          - file: 14.jpg
+            duration: 3.2
+          - file: 15.jpg
+            duration: 3.2
+          - file: 22.jpg
+            duration: 3.2
+          - file: 23.jpg
+            duration: 3.2
+          - file: 24.jpg
+            duration: 3.2
+          - file: 16.jpg
+            duration: 3.2
+          - file: 17.jpg
+            duration: 3.2
+          - file: 18.jpg
+            duration: 3.2
+          - file: 19.jpg
+            duration: 3.2
+          - file: VS/DSC02784.JPG
+            duration: 3.2
+      -
+        # post-eclipse
+        duration: 3.2
+        images:
+          - file: VS/DSC02814.JPG
+          - file: VS/DSC03001.JPG
+          - file: VS/DSC03148.JPG
+          - file: VS/DSC03236.JPG
+          - file: VS/DSC03341.JPG
+          - file: VS/DSC03465.JPG
+            animation-preset: right-left
+            y0: 1.0
+            y1: 1.0
+          - file: VS/DSC02983.JPG
+          - file: VS/DSC02800.JPG
+            y1: 1.0
+          - file: VS/DSC02802.JPG
+          - file: VS/DSC03436.JPG
+            animation-preset: zoom-out-center
+          - generate: black
+            transitiontime: 2.0
+            duration: 4.0
